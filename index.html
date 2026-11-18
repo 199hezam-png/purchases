@@ -1,0 +1,1455 @@
+index.html<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظام إدارة المشتريات السحابي ومقارنة أقل سعر شراء</title>
+  <!-- Google Font: Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for real Excel (.xlsx) Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Cairo', 'sans-serif'] },
+          colors: {
+            navy: { 900: '#132A36', 800: '#1B3A4B', 700: '#2C5E73', 50: '#F2F7F9' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #F4F7F9; color: #1F2937; }
+    .tab-active { background-color: #1B3A4B; color: #ffffff; }
+    .tab-inactive { background-color: #ffffff; color: #1B3A4B; border: 1px solid #D0D7DE; }
+    .tab-inactive:hover { background-color: #EBF3F7; }
+
+    /* Print / PDF Export Styling */
+    @media print {
+      @page { size: A4 landscape; margin: 12mm; }
+      body { background: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .print-card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+      table { width: 100% !important; border-collapse: collapse !important; font-size: 11px !important; }
+      th, td { border: 1px solid #cbd5e1 !important; padding: 6px 8px !important; }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; }
+    }
+    .print-only { display: none; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="loginScreen" class="fixed inset-0 z-40 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+      <div class="bg-navy-800 text-white p-6 text-center">
+        <div class="w-16 h-16 bg-navy-700 rounded-2xl mx-auto flex items-center justify-center mb-3 shadow-inner">
+          <i data-lucide="shield-check" class="w-9 h-9 text-sky-200"></i>
+        </div>
+        <h1 id="loginTitle" class="text-xl font-extrabold">نظام إدارة المشتريات ومقارنة أقل سعر</h1>
+        <p id="loginSubtitle" class="text-xs text-sky-100/80 mt-1">سجّل الدخول للوصول إلى الفواتير والتقارير</p>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)" class="p-6 space-y-4">
+        <div id="loginError" class="hidden bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold px-3 py-2.5 rounded-xl flex items-center gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+          <span id="loginErrorText"></span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">اسم المستخدم أو البريد الإلكتروني</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute right-3 top-3"></i>
+            <input type="text" id="loginUser" required autocomplete="username" placeholder="admin أو email@example.com"
+              class="w-full pr-10 pl-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">كلمة المرور</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute right-3 top-3"></i>
+            <input type="password" id="loginPass" required autocomplete="current-password" placeholder="••••••••"
+              class="w-full pr-10 pl-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            <button type="button" onclick="togglePassVisibility()" class="absolute left-3 top-2.5 text-slate-400 hover:text-slate-600">
+              <i id="passEyeIcon" data-lucide="eye" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="loginSubmitBtn" class="w-full bg-navy-800 hover:bg-navy-900 text-white font-bold py-3 rounded-xl shadow-md flex items-center justify-center gap-2 transition">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          تسجيل الدخول
+        </button>
+
+        <div id="localHintBox" class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 text-center">
+          الدخول الافتراضي (الوضع المحلي): اسم المستخدم <strong class="text-navy-800">admin</strong> — كلمة السر <strong class="text-navy-800">1234</strong>
+          <br/><span class="text-[11px] text-slate-400">(يمكنك تغييرها أو تفعيل Firebase Auth من الإعدادات بعد الدخول)</span>
+        </div>
+
+        <div class="text-center pt-1">
+          <button type="button" onclick="openCloudModal()" class="text-xs font-bold text-sky-700 hover:underline inline-flex items-center gap-1">
+            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+            إعدادات الربط السحابي (Firebase)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APPLICATION WRAPPER ==================== -->
+  <div id="appWrapper" class="hidden min-h-screen flex flex-col">
+
+    <!-- Top Header -->
+    <header class="bg-navy-800 text-white shadow-md no-print">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="bg-navy-700 p-2.5 rounded-xl">
+            <i data-lucide="cloud" class="w-7 h-7 text-white"></i>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 id="appHeaderTitle" class="text-xl md:text-2xl font-extrabold tracking-tight">نظام إدارة المشتريات ومقارنة أقل سعر</h1>
+              <!-- Sync Status Pill -->
+              <button onclick="openCloudModal()" id="syncStatusPill" class="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40 hover:bg-amber-500/30 transition">
+                <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span id="syncText">وضع محلي</span>
+              </button>
+            </div>
+            <p class="text-xs md:text-sm text-sky-100/80">
+              مرحباً <span id="currentUserBadge" class="font-bold text-white"></span> • مقارنة تلقائية لأقل سعر شراء • تصدير Excel و PDF
+            </p>
+          </div>
+        </div>
+
+        <!-- Export, Settings & Logout Actions -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openCloudModal()" class="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold px-3.5 py-2 rounded-lg shadow transition">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+            الإعدادات
+          </button>
+          <button onclick="exportExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-3.5 py-2 rounded-lg shadow transition">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+            Excel
+          </button>
+          <button onclick="exportPDF()" class="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold px-3.5 py-2 rounded-lg shadow transition">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+            PDF
+          </button>
+          <button onclick="exportJSON()" title="حفظ نسخة احتياطية" class="flex items-center gap-1.5 bg-navy-700 hover:bg-navy-900 text-white text-sm font-semibold px-3 py-2 rounded-lg transition">
+            <i data-lucide="download" class="w-4 h-4"></i>
+          </button>
+          <label title="استعادة نسخة احتياطية" class="cursor-pointer flex items-center gap-1.5 bg-navy-700 hover:bg-navy-900 text-white text-sm font-semibold px-3 py-2 rounded-lg transition">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            <input type="file" id="importFile" accept=".json" class="hidden" onchange="importJSON(event)" />
+          </label>
+          <button onclick="handleLogout()" title="تسجيل الخروج" class="flex items-center gap-1.5 bg-slate-700 hover:bg-rose-700 text-white text-sm font-bold px-3 py-2 rounded-lg transition">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            خروج
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Print-only Professional Report Header -->
+    <div class="print-only mb-4 pb-3 border-b-2 border-navy-800">
+      <div class="flex justify-between items-center">
+        <div>
+          <h1 id="printTitle" class="text-2xl font-extrabold text-navy-800">تقرير فواتير المشتريات ومقارنة أقل سعر شراء</h1>
+          <p class="text-sm text-gray-600" id="printSubtitle">تقرير شامل للأصناف والموردين وأفضل أسعار الشراء</p>
+        </div>
+        <div class="text-left text-xs text-gray-600">
+          <div>تاريخ التصدير: <span id="printDate" class="font-bold"></span></div>
+          <div>عدد السجلات: <span id="printCount" class="font-bold"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl w-full mx-auto px-4 py-6 flex-1 space-y-6">
+
+      <!-- KPI Cards -->
+      <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 print-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-500">إجمالي قيمة المشتريات</span>
+            <i data-lucide="wallet" class="w-5 h-5 text-navy-700 no-print"></i>
+          </div>
+          <div id="kpiTotalValue" class="text-2xl font-extrabold text-navy-800 mt-1">0.00</div>
+        </div>
+
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 print-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-500">إجمالي عدد الحركات</span>
+            <i data-lucide="layers" class="w-5 h-5 text-navy-700 no-print"></i>
+          </div>
+          <div id="kpiCount" class="text-2xl font-extrabold text-navy-800 mt-1">0</div>
+        </div>
+
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 print-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-500">إجمالي الكميات</span>
+            <i data-lucide="package" class="w-5 h-5 text-navy-700 no-print"></i>
+          </div>
+          <div id="kpiQty" class="text-2xl font-extrabold text-navy-800 mt-1">0</div>
+        </div>
+
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 print-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-500">مشتريات بأفضل سعر</span>
+            <i data-lucide="badge-check" class="w-5 h-5 text-emerald-600 no-print"></i>
+          </div>
+          <div id="kpiBestCount" class="text-2xl font-extrabold text-emerald-700 mt-1">0</div>
+        </div>
+      </section>
+
+      <!-- Navigation Tabs -->
+      <div class="flex flex-wrap items-center justify-between gap-3 no-print">
+        <div class="flex gap-2">
+          <button id="tabBtnEntry" onclick="switchTab('entry')" class="tab-active px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            إدخال الفواتير والجدول
+          </button>
+          <button id="tabBtnAnalytics" onclick="switchTab('analytics')" class="tab-inactive px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2">
+            <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+            ملخص الأصناف والموردين
+          </button>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="loadSampleData()" class="text-xs font-bold text-navy-700 hover:underline px-2 py-1">تحميل بيانات تجريبية</button>
+          <button onclick="clearAllData()" class="text-xs font-bold text-rose-600 hover:underline px-2 py-1">مسح جميع البيانات</button>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 1: ENTRY & TABLE ==================== -->
+      <div id="tabEntry" class="space-y-6">
+
+        <!-- Access-style Entry Form -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden no-print">
+          <div class="bg-navy-800 text-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="edit-3" class="w-5 h-5"></i>
+              <h2 id="formTitle" class="font-bold text-base">واجهة إدخال صنف جديد</h2>
+            </div>
+            <div id="liveMinBadge" class="hidden text-xs bg-amber-100 text-amber-900 font-bold px-3 py-1 rounded-full"></div>
+          </div>
+
+          <form id="entryForm" onsubmit="handleFormSubmit(event)" class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+            <input type="hidden" id="editId" value="" />
+
+            <div class="lg:col-span-2">
+              <label class="block text-xs font-bold text-slate-700 mb-1">اسم الصنف <span class="text-rose-500">*</span></label>
+              <input type="text" id="itemName" list="itemsList" required placeholder="مثال: أوجمنتين 1 جم"
+                oninput="updateLiveMinHint()"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+              <datalist id="itemsList"></datalist>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">اسم الوحدة <span class="text-rose-500">*</span></label>
+              <input type="text" id="unitName" list="unitsList" required placeholder="علبة / شريط..."
+                oninput="updateLiveMinHint()"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+              <datalist id="unitsList">
+                <option value="علبة"></option>
+                <option value="شريط"></option>
+                <option value="كرتون"></option>
+                <option value="حبة"></option>
+                <option value="عبوة"></option>
+                <option value="باكت"></option>
+                <option value="زجاجة"></option>
+              </datalist>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">الكمية <span class="text-rose-500">*</span></label>
+              <input type="number" id="qty" step="any" min="0.01" required placeholder="0"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">السعر <span class="text-rose-500">*</span></label>
+              <input type="number" id="price" step="any" min="0" required placeholder="0.00"
+                oninput="updateLiveMinHint()"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">اسم المورد <span class="text-rose-500">*</span></label>
+              <input type="text" id="supplierName" list="suppliersList" required placeholder="اسم المورد"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+              <datalist id="suppliersList"></datalist>
+            </div>
+
+            <div class="sm:col-span-2 lg:col-span-6 flex flex-wrap items-center gap-2 pt-1">
+              <button type="submit" id="submitBtn" class="bg-navy-800 hover:bg-navy-900 text-white font-bold text-sm px-6 py-2.5 rounded-lg shadow flex items-center gap-2 transition">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                حفظ وإضافة للجدول
+              </button>
+              <button type="button" id="cancelEditBtn" onclick="resetForm()" class="hidden bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm px-4 py-2.5 rounded-lg transition">
+                إلغاء التعديل
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Search & Filter Bar -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 no-print">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="relative">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute right-3 top-3"></i>
+              <input type="text" id="searchInput" oninput="renderAll()" placeholder="بحث باسم الصنف أو المورد أو الوحدة..."
+                class="w-full pr-9 pl-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            </div>
+            <div>
+              <select id="filterSupplier" onchange="renderAll()" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-700">
+                <option value="">كل الموردين</option>
+              </select>
+            </div>
+            <div>
+              <select id="filterRating" onchange="renderAll()" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-700">
+                <option value="">كل تقييمات السعر</option>
+                <option value="أفضل سعر">أفضل سعر فقط</option>
+                <option value="أعلى من الأقل">أعلى من الأقل فقط</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- Main Table -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print-card">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-right border-collapse">
+              <thead>
+                <tr class="bg-navy-800 text-white">
+                  <th class="py-3 px-3 text-center font-bold">#</th>
+                  <th class="py-3 px-3 font-bold">اسم الصنف</th>
+                  <th class="py-3 px-3 text-center font-bold">اسم الوحدة</th>
+                  <th class="py-3 px-3 text-center font-bold">الكمية</th>
+                  <th class="py-3 px-3 text-center font-bold">السعر</th>
+                  <th class="py-3 px-3 font-bold">اسم المورد</th>
+                  <th class="py-3 px-3 text-center font-bold bg-navy-700">الإجمالي</th>
+                  <th class="py-3 px-3 text-center font-bold bg-navy-700">أقل سعر شراء للصنف</th>
+                  <th class="py-3 px-3 text-center font-bold bg-navy-700">الفرق عن أقل سعر</th>
+                  <th class="py-3 px-3 text-center font-bold bg-navy-700">تقييم السعر</th>
+                  <th class="py-3 px-3 text-center font-bold no-print">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="mainTableBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+          <div id="emptyState" class="hidden p-10 text-center text-slate-500">
+            <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+            <p class="font-bold">لا توجد بيانات مطابقة حالياً</p>
+            <p class="text-xs mt-1">ابدأ بإضافة صنف جديد من النموذج أعلاه.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- ==================== TAB 2: ANALYTICS & SUMMARIES ==================== -->
+      <div id="tabAnalytics" class="hidden space-y-6">
+
+        <!-- Items Lowest vs Highest Summary -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print-card">
+          <div class="bg-navy-800 text-white px-5 py-3 flex items-center gap-2">
+            <i data-lucide="trending-down" class="w-5 h-5"></i>
+            <h2 class="font-bold text-base">ملخص مقارنة أسعار الشراء حسب الصنف والوحدة</h2>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-right border-collapse">
+              <thead>
+                <tr class="bg-navy-50 text-navy-900 border-b border-slate-200">
+                  <th class="py-3 px-4 font-bold">اسم الصنف</th>
+                  <th class="py-3 px-3 text-center font-bold">اسم الوحدة</th>
+                  <th class="py-3 px-3 text-center font-bold">أقل سعر شراء</th>
+                  <th class="py-3 px-3 text-center font-bold">أفضل مورد (الأقل سعراً)</th>
+                  <th class="py-3 px-3 text-center font-bold">أعلى سعر شراء</th>
+                  <th class="py-3 px-3 text-center font-bold">الفرق</th>
+                  <th class="py-3 px-3 text-center font-bold">إجمالي الكمية</th>
+                  <th class="py-3 px-3 text-center font-bold">إجمالي قيمة الشراء</th>
+                </tr>
+              </thead>
+              <tbody id="itemsSummaryBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Suppliers Summary -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print-card">
+          <div class="bg-navy-700 text-white px-5 py-3 flex items-center gap-2">
+            <i data-lucide="truck" class="w-5 h-5"></i>
+            <h2 class="font-bold text-base">ملخص المشتريات حسب المورد</h2>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-right border-collapse">
+              <thead>
+                <tr class="bg-navy-50 text-navy-900 border-b border-slate-200">
+                  <th class="py-3 px-4 font-bold">اسم المورد</th>
+                  <th class="py-3 px-3 text-center font-bold">عدد الحركات</th>
+                  <th class="py-3 px-3 text-center font-bold">إجمالي الكميات</th>
+                  <th class="py-3 px-3 text-center font-bold">إجمالي قيمة المشتريات</th>
+                  <th class="py-3 px-3 text-center font-bold">نسبة التوريد</th>
+                </tr>
+              </thead>
+              <tbody id="suppliersSummaryBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <footer class="text-center text-xs text-slate-400 py-4 no-print">
+      يدعم تسجيل الدخول المحلي والسحابي (Firebase Auth & Firestore) • تصدير Excel و PDF
+    </footer>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 left-5 z-50 hidden bg-navy-900 text-white text-sm font-bold px-4 py-3 rounded-xl shadow-lg border border-navy-700 flex items-center gap-2 no-print">
+    <i data-lucide="info" class="w-4 h-4 text-sky-300"></i>
+    <span id="toastMsg"></span>
+  </div>
+
+  <!-- ==================== SETTINGS & CLOUD SYNC MODAL ==================== -->
+  <div id="cloudModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+      <div class="bg-navy-800 text-white px-5 py-4 flex items-center justify-between sticky top-0">
+        <div class="flex items-center gap-2">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+          <h3 class="font-bold text-lg">إعدادات النظام، الحساب، والسحابة (Firebase)</h3>
+        </div>
+        <button onclick="closeCloudModal()" class="p-1 rounded-lg hover:bg-navy-700 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-5">
+        <!-- Store / Report Name -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">اسم المؤسسة / الصيدلية (يظهر في شاشة الدخول وتقارير PDF)</label>
+          <input type="text" id="storeNameInput" placeholder="مثال: صيدلية أسطول الدواء المركزية"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-700" />
+        </div>
+
+        <!-- Local Account Credentials -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+          <div class="font-bold text-navy-800 text-sm flex items-center gap-2">
+            <i data-lucide="key-round" class="w-4 h-4"></i>
+            تغيير اسم المستخدم وكلمة المرور (للدخول المحلي)
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">اسم المستخدم</label>
+              <input type="text" id="localUserInput" placeholder="admin"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">كلمة المرور</label>
+              <input type="text" id="localPassInput" placeholder="1234"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Firebase Cloud Settings -->
+        <div class="space-y-3 border-t border-slate-200 pt-4">
+          <div class="font-bold text-navy-800 text-sm flex items-center gap-2">
+            <i data-lucide="cloud-cog" class="w-4 h-4"></i>
+            إعدادات Firebase (المزامنة السحابية وتسجيل الدخول السحابي)
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">اسم المجموعة (Collection)</label>
+              <input type="text" id="collectionNameInput" value="purchase_invoices" dir="ltr"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono text-left focus:outline-none focus:ring-2 focus:ring-navy-700" />
+            </div>
+            <div class="flex items-end pb-2">
+              <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                <input type="checkbox" id="useFirebaseAuthCheckbox" class="w-4 h-4 rounded text-navy-800 focus:ring-navy-700" />
+                تفعيل تسجيل الدخول عبر Firebase Auth (بريد وكلمة سر)
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">
+              ألصق كود <span class="font-mono text-navy-700">firebaseConfig</span> هنا:
+            </label>
+            <textarea id="firebaseConfigInput" rows="6" dir="ltr"
+              placeholder='const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef"
+};'
+              class="w-full rounded-lg border border-slate-300 p-3 text-xs font-mono bg-slate-50 focus:outline-none focus:ring-2 focus:ring-navy-700"></textarea>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
+          <button onclick="saveCloudSettings()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow flex items-center gap-2 transition">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            حفظ الإعدادات
+          </button>
+          <button id="uploadLocalBtn" onclick="uploadLocalToCloud()" class="hidden bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg flex items-center gap-2 transition">
+            <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+            رفع البيانات المحلية للسحابة
+          </button>
+          <button id="disconnectCloudBtn" onclick="disconnectCloud()" class="hidden bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-sm px-4 py-2.5 rounded-lg transition">
+            فصل السحابة
+          </button>
+        </div>
+
+        <!-- Quick Guide -->
+        <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 text-xs text-slate-700 space-y-1.5">
+          <div class="font-bold text-navy-800 text-sm mb-1">ملاحظة لتفعيل الدخول السحابي (Firebase Auth):</div>
+          <p>1. في <strong>Firebase Console</strong> اختر <strong>Authentication</strong> ← <strong>Sign-in method</strong> وفعّل خيار <strong>Email/Password</strong>.</p>
+          <p>2. من تبويب <strong>Users</strong> أضف حسابات الموظفين (البريد الإلكتروني وكلمة المرور).</p>
+          <p>3. لحماية قاعدة البيانات في <strong>Firestore Rules</strong> استخدم القاعدة: <code class="bg-white px-1 rounded" dir="ltr">allow read, write: if request.auth != null;</code></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== APP LOGIC (ES MODULE WITH FIREBASE v10) ==================== -->
+  <script type="module">
+    import { initializeApp, deleteApp, getApps } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import {
+      getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+      onSnapshot, writeBatch, getDocs, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import {
+      getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+    // =========================================================================
+    // [اختياري للنشر على الإنترنت]: ألصق إعدادات Firebase هنا ليتصل كل جهاز تلقائياً
+    // =========================================================================
+    const DEFAULT_FIREBASE_CONFIG = null;
+    const DEFAULT_USE_FIREBASE_AUTH = false;
+    const DEFAULT_COLLECTION = "purchase_invoices";
+    const DEFAULT_STORE_NAME = "نظام إدارة المشتريات ومقارنة أقل سعر";
+
+    const STORAGE_KEY = 'purchases_cloud_app_local_v3';
+    const CONFIG_KEY = 'purchases_cloud_firebase_cfg_v3';
+    const META_KEY = 'purchases_cloud_meta_v3';
+    const LOCAL_AUTH_KEY = 'purchases_local_auth_v3';
+    const SESSION_KEY = 'purchases_logged_in_session_v3';
+
+    const DEFAULT_SAMPLES = [
+      { id: 's1', item: 'أوجمنتين 1 جم', unit: 'علبة', qty: 20, price: 4500, supplier: 'شركة الأفق للتوريدات' },
+      { id: 's2', item: 'بنادول إكسترا', unit: 'علبة', qty: 50, price: 1200, supplier: 'شركة الأفق للتوريدات' },
+      { id: 's3', item: 'فيتامين د 5000', unit: 'علبة', qty: 15, price: 3800, supplier: 'شركة الأفق للتوريدات' },
+      { id: 's4', item: 'أوجمنتين 1 جم', unit: 'علبة', qty: 30, price: 4250, supplier: 'مؤسسة الشفاء الطبية' },
+      { id: 's5', item: 'بنادول إكسترا', unit: 'علبة', qty: 40, price: 1250, supplier: 'مؤسسة الشفاء الطبية' },
+      { id: 's6', item: 'شاش طبي معقم', unit: 'كرتون', qty: 10, price: 8500, supplier: 'مؤسسة الشفاء الطبية' },
+      { id: 's7', item: 'أوجمنتين 1 جم', unit: 'علبة', qty: 25, price: 4400, supplier: 'مستودع النور المركزي' },
+      { id: 's8', item: 'فيتامين د 5000', unit: 'علبة', qty: 20, price: 3600, supplier: 'مستودع النور المركزي' },
+      { id: 's9', item: 'شاش طبي معقم', unit: 'كرتون', qty: 12, price: 8200, supplier: 'مستودع النور المركزي' },
+      { id: 's10', item: 'بنادول إكسترا', unit: 'شريط', qty: 100, price: 620, supplier: 'مؤسسة الشفاء الطبية' },
+    ];
+
+    let records = [];
+    let currentTab = 'entry';
+    let isCloudMode = false;
+    let useFirebaseAuth = DEFAULT_USE_FIREBASE_AUTH;
+    let db = null;
+    let auth = null;
+    let unsubscribeSnapshot = null;
+    let unsubscribeAuth = null;
+    let activeCollection = DEFAULT_COLLECTION;
+    let storeName = DEFAULT_STORE_NAME;
+    let localCreds = { user: 'admin', pass: '1234' };
+
+    // -------------------- TOAST & UI HELPERS --------------------
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 3500);
+    }
+
+    function setSyncBadge(state, label) {
+      const pill = document.getElementById('syncStatusPill');
+      const dot = document.getElementById('syncDot');
+      const txt = document.getElementById('syncText');
+      txt.textContent = label;
+
+      if (state === 'cloud') {
+        pill.className = 'flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 hover:bg-emerald-500/30 transition';
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+      } else if (state === 'error') {
+        pill.className = 'flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-200 border border-rose-400/40 hover:bg-rose-500/30 transition';
+        dot.className = 'w-2 h-2 rounded-full bg-rose-400';
+      } else {
+        pill.className = 'flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/40 hover:bg-amber-500/30 transition';
+        dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+      }
+    }
+
+    function applyStoreName() {
+      const title = storeName && storeName.trim() ? storeName.trim() : DEFAULT_STORE_NAME;
+      document.getElementById('appHeaderTitle').textContent = title;
+      document.getElementById('loginTitle').textContent = title;
+      document.getElementById('printTitle').textContent = title + ' — تقرير المشتريات وأقل سعر';
+    }
+
+    function showLoginScreen(isFirebaseAuthMode) {
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('appWrapper').classList.add('hidden');
+      const hintBox = document.getElementById('localHintBox');
+      if (isFirebaseAuthMode) {
+        hintBox.classList.add('hidden');
+        document.getElementById('loginSubtitle').textContent = 'تسجيل الدخول السحابي عبر Firebase Authentication';
+      } else {
+        hintBox.classList.remove('hidden');
+        document.getElementById('loginSubtitle').textContent = 'سجّل الدخول للوصول إلى الفواتير والتقارير';
+      }
+      lucide.createIcons();
+    }
+
+    function showAppScreen(displayName) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appWrapper').classList.remove('hidden');
+      document.getElementById('currentUserBadge').textContent = displayName || localCreds.user;
+      lucide.createIcons();
+    }
+
+    function showLoginError(msg) {
+      const box = document.getElementById('loginError');
+      document.getElementById('loginErrorText').textContent = msg;
+      box.classList.remove('hidden');
+    }
+
+    function hideLoginError() {
+      document.getElementById('loginError').classList.add('hidden');
+    }
+
+    function togglePassVisibility() {
+      const inp = document.getElementById('loginPass');
+      const icon = document.getElementById('passEyeIcon');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        inp.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------- LOGIN / LOGOUT --------------------
+    async function handleLogin(e) {
+      e.preventDefault();
+      hideLoginError();
+      const userVal = document.getElementById('loginUser').value.trim();
+      const passVal = document.getElementById('loginPass').value;
+
+      if (useFirebaseAuth && auth) {
+        try {
+          const email = userVal.includes('@') ? userVal : `${userVal}@app.local`;
+          await signInWithEmailAndPassword(auth, email, passVal);
+          document.getElementById('loginForm').reset();
+          showToast('تم تسجيل الدخول السحابي بنجاح');
+        } catch (err) {
+          console.error(err);
+          showLoginError('بيانات الدخول غير صحيحة أو الحساب غير مسجل في Firebase.');
+        }
+      } else {
+        if (userVal === localCreds.user && passVal === localCreds.pass) {
+          sessionStorage.setItem(SESSION_KEY, userVal);
+          document.getElementById('loginForm').reset();
+          showAppScreen(userVal);
+          if (isCloudMode && db) {
+            startFirestoreListener();
+          } else {
+            loadLocalData();
+          }
+          showToast('مرحباً بك!');
+        } else {
+          showLoginError('اسم المستخدم أو كلمة المرور غير صحيحة.');
+        }
+      }
+    }
+
+    async function handleLogout() {
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      if (useFirebaseAuth && auth) {
+        await signOut(auth);
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+        showLoginScreen(false);
+      }
+      showToast('تم تسجيل الخروج');
+    }
+
+    // -------------------- FIREBASE CONNECTION --------------------
+    function parseFirebaseConfig(rawText) {
+      if (!rawText || !rawText.trim()) return null;
+      const text = rawText.trim();
+      try {
+        const obj = JSON.parse(text);
+        if (obj.apiKey && obj.projectId) return obj;
+      } catch {}
+
+      const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
+      const cfg = {};
+      keys.forEach(k => {
+        const regex = new RegExp(`["']?${k}["']?\\s*:\\s*["']([^"']+)["']`);
+        const match = text.match(regex);
+        if (match && match[1]) cfg[k] = match[1].trim();
+      });
+      return (cfg.apiKey && cfg.projectId) ? cfg : null;
+    }
+
+    function startFirestoreListener() {
+      if (!db) return;
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      const colRef = collection(db, activeCollection);
+      unsubscribeSnapshot = onSnapshot(colRef, (snapshot) => {
+        records = snapshot.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            item: data.item || '',
+            unit: data.unit || '',
+            qty: Number(data.qty) || 0,
+            price: Number(data.price) || 0,
+            supplier: data.supplier || '',
+            createdAt: data.createdAtMs || 0
+          };
+        }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        renderAll();
+      }, (err) => {
+        console.error('Firestore listener error:', err);
+        setSyncBadge('error', 'خطأ في صلاحيات Firestore');
+        showToast('تعذر القراءة من السحابة — تأكد من قواعد الأمان (Firestore Rules)');
+      });
+    }
+
+    async function connectFirebase(config) {
+      try {
+        if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+        if (unsubscribeAuth) { unsubscribeAuth(); unsubscribeAuth = null; }
+        for (const app of getApps()) {
+          await deleteApp(app);
+        }
+
+        const app = initializeApp(config);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        isCloudMode = true;
+        setSyncBadge('cloud', 'متصل بالسحابة (مزامنة فورية)');
+        document.getElementById('disconnectCloudBtn').classList.remove('hidden');
+        document.getElementById('uploadLocalBtn').classList.remove('hidden');
+
+        if (useFirebaseAuth) {
+          unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+            if (user) {
+              showAppScreen(user.email || 'مستخدم سحابي');
+              startFirestoreListener();
+            } else {
+              if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+              showLoginScreen(true);
+            }
+          });
+        } else {
+          const sessUser = sessionStorage.getItem(SESSION_KEY);
+          if (sessUser) {
+            showAppScreen(sessUser);
+            startFirestoreListener();
+          } else {
+            showLoginScreen(false);
+          }
+        }
+      } catch (err) {
+        console.error('Firebase init error:', err);
+        isCloudMode = false;
+        setSyncBadge('error', 'فشل الاتصال بالسحابة');
+        showToast('تأكد من صحة إعدادات Firebase');
+      }
+    }
+
+    function loadLocalData() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try { records = JSON.parse(saved); } catch { records = [...DEFAULT_SAMPLES]; }
+      } else {
+        records = [...DEFAULT_SAMPLES];
+        saveLocalData();
+      }
+      renderAll();
+    }
+
+    function saveLocalData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+
+    async function init() {
+      // Load local credentials
+      try {
+        const savedAuth = JSON.parse(localStorage.getItem(LOCAL_AUTH_KEY) || 'null');
+        if (savedAuth && savedAuth.user && savedAuth.pass) localCreds = savedAuth;
+      } catch {}
+
+      // Load metadata
+      try {
+        const meta = JSON.parse(localStorage.getItem(META_KEY) || '{}');
+        if (meta.storeName) storeName = meta.storeName;
+        if (meta.collectionName) activeCollection = meta.collectionName;
+        if (typeof meta.useFirebaseAuth === 'boolean') useFirebaseAuth = meta.useFirebaseAuth;
+      } catch {}
+      applyStoreName();
+
+      let activeConfig = DEFAULT_FIREBASE_CONFIG;
+      if (!activeConfig) {
+        try {
+          const savedCfg = localStorage.getItem(CONFIG_KEY);
+          if (savedCfg) activeConfig = JSON.parse(savedCfg);
+        } catch {}
+      }
+
+      if (activeConfig && activeConfig.apiKey && activeConfig.projectId) {
+        await connectFirebase(activeConfig);
+      } else {
+        isCloudMode = false;
+        setSyncBadge('local', 'وضع محلي (اضغط للربط السحابي)');
+        const sessUser = sessionStorage.getItem(SESSION_KEY);
+        if (sessUser) {
+          showAppScreen(sessUser);
+          loadLocalData();
+        } else {
+          showLoginScreen(false);
+        }
+      }
+      lucide.createIcons();
+    }
+
+    // -------------------- MODAL ACTIONS --------------------
+    function openCloudModal() {
+      document.getElementById('storeNameInput').value = storeName === DEFAULT_STORE_NAME ? '' : storeName;
+      document.getElementById('localUserInput').value = localCreds.user;
+      document.getElementById('localPassInput').value = localCreds.pass;
+      document.getElementById('collectionNameInput').value = activeCollection;
+      document.getElementById('useFirebaseAuthCheckbox').checked = useFirebaseAuth;
+
+      const savedCfg = localStorage.getItem(CONFIG_KEY);
+      if (savedCfg) {
+        document.getElementById('firebaseConfigInput').value = JSON.stringify(JSON.parse(savedCfg), null, 2);
+      } else if (DEFAULT_FIREBASE_CONFIG) {
+        document.getElementById('firebaseConfigInput').value = JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2);
+      }
+      document.getElementById('cloudModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeCloudModal() {
+      document.getElementById('cloudModal').classList.add('hidden');
+    }
+
+    async function saveCloudSettings() {
+      const newStore = document.getElementById('storeNameInput').value.trim();
+      const newUser = document.getElementById('localUserInput').value.trim() || 'admin';
+      const newPass = document.getElementById('localPassInput').value.trim() || '1234';
+      const newCol = document.getElementById('collectionNameInput').value.trim() || DEFAULT_COLLECTION;
+      const newUseFbAuth = document.getElementById('useFirebaseAuthCheckbox').checked;
+      const rawCfg = document.getElementById('firebaseConfigInput').value.trim();
+
+      localCreds = { user: newUser, pass: newPass };
+      localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(localCreds));
+
+      storeName = newStore || DEFAULT_STORE_NAME;
+      activeCollection = newCol;
+      useFirebaseAuth = newUseFbAuth;
+      localStorage.setItem(META_KEY, JSON.stringify({ storeName, collectionName: activeCollection, useFirebaseAuth }));
+      applyStoreName();
+
+      if (!rawCfg) {
+        showToast('تم حفظ الإعدادات وبيانات الدخول بنجاح.');
+        closeCloudModal();
+        return;
+      }
+
+      const parsed = parseFirebaseConfig(rawCfg);
+      if (!parsed) {
+        alert('لم يتم التعرف على إعدادات Firebase. تأكد من لصق الكود كاملاً متضمناً apiKey و projectId.');
+        return;
+      }
+
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(parsed));
+      await connectFirebase(parsed);
+      showToast('تم حفظ الإعدادات وتفعيل الربط السحابي بنجاح!');
+      closeCloudModal();
+    }
+
+    async function uploadLocalToCloud() {
+      if (!isCloudMode || !db) return;
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) { showToast('لا توجد بيانات محلية لرفعها.'); return; }
+      let localRecs = [];
+      try { localRecs = JSON.parse(saved); } catch {}
+      if (!localRecs.length) { showToast('البيانات المحلية فارغة.'); return; }
+      if (!confirm(`سيتم رفع ${localRecs.length} سجل من جهازك إلى السحابة. هل تريد المتابعة؟`)) return;
+
+      try {
+        const batch = writeBatch(db);
+        const colRef = collection(db, activeCollection);
+        localRecs.forEach((r, idx) => {
+          batch.set(doc(colRef), {
+            item: r.item, unit: r.unit, qty: Number(r.qty), price: Number(r.price), supplier: r.supplier,
+            createdAtMs: Date.now() + idx
+          });
+        });
+        await batch.commit();
+        showToast(`تم رفع ${localRecs.length} سجل إلى السحابة بنجاح!`);
+        closeCloudModal();
+      } catch (err) {
+        console.error(err);
+        alert('حدث خطأ أثناء الرفع. تأكد من أن قواعد Firestore تسمح بالكتابة.');
+      }
+    }
+
+    async function disconnectCloud() {
+      if (!confirm('هل تريد فصل الربط السحابي والعودة للحفظ المحلي؟')) return;
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      if (unsubscribeAuth) { unsubscribeAuth(); unsubscribeAuth = null; }
+      localStorage.removeItem(CONFIG_KEY);
+      useFirebaseAuth = false;
+      localStorage.setItem(META_KEY, JSON.stringify({ storeName, collectionName: activeCollection, useFirebaseAuth: false }));
+      isCloudMode = false;
+      db = null;
+      auth = null;
+      setSyncBadge('local', 'وضع محلي (اضغط للربط السحابي)');
+      document.getElementById('disconnectCloudBtn').classList.add('hidden');
+      document.getElementById('uploadLocalBtn').classList.add('hidden');
+      document.getElementById('firebaseConfigInput').value = '';
+      loadLocalData();
+      showToast('تم التحويل إلى الوضع المحلي.');
+      closeCloudModal();
+    }
+
+    // -------------------- CRUD OPERATIONS --------------------
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editId').value;
+      const item = document.getElementById('itemName').value.trim();
+      const unit = document.getElementById('unitName').value.trim();
+      const qty = parseFloat(document.getElementById('qty').value);
+      const price = parseFloat(document.getElementById('price').value);
+      const supplier = document.getElementById('supplierName').value.trim();
+
+      if (!item || !unit || isNaN(qty) || isNaN(price) || !supplier) return;
+
+      if (isCloudMode && db) {
+        try {
+          if (editId) {
+            await updateDoc(doc(db, activeCollection, editId), { item, unit, qty, price, supplier });
+            showToast('تم تحديث السجل سحابياً');
+          } else {
+            await addDoc(collection(db, activeCollection), {
+              item, unit, qty, price, supplier,
+              createdAtMs: Date.now(),
+              createdAt: serverTimestamp()
+            });
+            showToast('تم الحفظ والمزامنة سحابياً');
+          }
+          resetForm();
+        } catch (err) {
+          console.error(err);
+          alert('فشل الحفظ في السحابة. تأكد من الاتصال بالإنترنت ومن قواعد Firestore.');
+        }
+      } else {
+        if (editId) {
+          const idx = records.findIndex(r => String(r.id) === String(editId));
+          if (idx !== -1) records[idx] = { ...records[idx], item, unit, qty, price, supplier };
+          showToast('تم تحديث السجل محلياً');
+        } else {
+          records.push({
+            id: 'loc_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            item, unit, qty, price, supplier
+          });
+          showToast('تم الحفظ محلياً');
+        }
+        saveLocalData();
+        resetForm();
+        renderAll();
+      }
+    }
+
+    function editRecord(id) {
+      const rec = records.find(r => String(r.id) === String(id));
+      if (!rec) return;
+      document.getElementById('editId').value = rec.id;
+      document.getElementById('itemName').value = rec.item;
+      document.getElementById('unitName').value = rec.unit;
+      document.getElementById('qty').value = rec.qty;
+      document.getElementById('price').value = rec.price;
+      document.getElementById('supplierName').value = rec.supplier;
+
+      document.getElementById('formTitle').textContent = 'تعديل سجل الصنف';
+      document.getElementById('submitBtn').innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> حفظ التعديلات';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+      updateLiveMinHint();
+      lucide.createIcons();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function deleteRecord(id) {
+      if (!confirm('هل تريد حذف هذا السجل؟')) return;
+      if (isCloudMode && db) {
+        try {
+          await deleteDoc(doc(db, activeCollection, String(id)));
+          showToast('تم الحذف من السحابة');
+        } catch (err) {
+          console.error(err);
+          alert('تعذر الحذف من السحابة.');
+        }
+      } else {
+        records = records.filter(r => String(r.id) !== String(id));
+        saveLocalData();
+        renderAll();
+        showToast('تم الحذف');
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('entryForm').reset();
+      document.getElementById('editId').value = '';
+      document.getElementById('formTitle').textContent = 'واجهة إدخال صنف جديد';
+      document.getElementById('submitBtn').innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> حفظ وإضافة للجدول';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      document.getElementById('liveMinBadge').classList.add('hidden');
+      lucide.createIcons();
+    }
+
+    async function loadSampleData() {
+      if (records.length > 0 && !confirm('سيتم إضافة البيانات التجريبية. هل أنت متأكد؟')) return;
+      if (isCloudMode && db) {
+        try {
+          const batch = writeBatch(db);
+          const colRef = collection(db, activeCollection);
+          DEFAULT_SAMPLES.forEach((r, idx) => {
+            batch.set(doc(colRef), {
+              item: r.item, unit: r.unit, qty: r.qty, price: r.price, supplier: r.supplier,
+              createdAtMs: Date.now() + idx
+            });
+          });
+          await batch.commit();
+          showToast('تمت إضافة البيانات التجريبية للسحابة');
+        } catch (err) {
+          console.error(err);
+          alert('تعذر إضافة البيانات للسحابة.');
+        }
+      } else {
+        records = [...DEFAULT_SAMPLES];
+        saveLocalData();
+        renderAll();
+        showToast('تم تحميل البيانات التجريبية');
+      }
+    }
+
+    async function clearAllData() {
+      if (!confirm('هل أنت متأكد من مسح جميع البيانات؟ يُنصح بأخذ نسخة احتياطية أولاً.')) return;
+      if (isCloudMode && db) {
+        try {
+          const snap = await getDocs(collection(db, activeCollection));
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          showToast('تم مسح جميع البيانات من السحابة');
+        } catch (err) {
+          console.error(err);
+          alert('تعذر مسح البيانات من السحابة.');
+        }
+      } else {
+        records = [];
+        saveLocalData();
+        renderAll();
+        showToast('تم مسح جميع البيانات');
+      }
+    }
+
+    // -------------------- CALCULATIONS & RENDERING --------------------
+    function fmtNum(val, decimals = 2) {
+      return Number(val || 0).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    function fmtQty(val) {
+      return Number(val || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    }
+
+    function normalizeKey(item, unit) {
+      return `${(item || '').trim().toLowerCase()}|||${(unit || '').trim().toLowerCase()}`;
+    }
+
+    function computeMinMap(list) {
+      const minMap = {};
+      list.forEach(r => {
+        const key = normalizeKey(r.item, r.unit);
+        if (minMap[key] === undefined || r.price < minMap[key]) minMap[key] = r.price;
+      });
+      return minMap;
+    }
+
+    function enrichRecords(list) {
+      const minMap = computeMinMap(list);
+      return list.map(r => {
+        const key = normalizeKey(r.item, r.unit);
+        const minPrice = minMap[key];
+        const total = r.qty * r.price;
+        const diff = r.price - minPrice;
+        const rating = diff <= 0.0001 ? 'أفضل سعر' : 'أعلى من الأقل';
+        return { ...r, total, minPrice, diff, rating };
+      });
+    }
+
+    function updateLiveMinHint() {
+      const item = document.getElementById('itemName').value.trim();
+      const unit = document.getElementById('unitName').value.trim();
+      const priceVal = parseFloat(document.getElementById('price').value);
+      const badge = document.getElementById('liveMinBadge');
+
+      if (!item || !unit) { badge.classList.add('hidden'); return; }
+
+      const key = normalizeKey(item, unit);
+      const minMap = computeMinMap(records);
+      if (minMap[key] !== undefined) {
+        const minP = minMap[key];
+        let msg = `أقل سعر مسجل سابقاً: ${fmtNum(minP)}`;
+        if (!isNaN(priceVal)) {
+          if (priceVal < minP) msg += ' (سعرك الجديد أقل — ممتاز!)';
+          else if (priceVal > minP) msg += ` (أعلى بـ ${fmtNum(priceVal - minP)})`;
+          else msg += ' (مطابق لأفضل سعر)';
+        }
+        badge.textContent = msg;
+        badge.classList.remove('hidden');
+      } else {
+        badge.textContent = 'صنف جديد — أول تسجيل لهذا الصنف والوحدة';
+        badge.classList.remove('hidden');
+      }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      const entryDiv = document.getElementById('tabEntry');
+      const analyticsDiv = document.getElementById('tabAnalytics');
+      const btnEntry = document.getElementById('tabBtnEntry');
+      const btnAnalytics = document.getElementById('tabBtnAnalytics');
+
+      if (tab === 'entry') {
+        entryDiv.classList.remove('hidden');
+        analyticsDiv.classList.add('hidden');
+        btnEntry.className = 'tab-active px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2';
+        btnAnalytics.className = 'tab-inactive px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2';
+      } else {
+        entryDiv.classList.add('hidden');
+        analyticsDiv.classList.remove('hidden');
+        btnAnalytics.className = 'tab-active px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2';
+        btnEntry.className = 'tab-inactive px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2';
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    function renderAll() {
+      const enriched = enrichRecords(records);
+
+      const uniqueItems = [...new Set(records.map(r => r.item))].sort();
+      const uniqueSuppliers = [...new Set(records.map(r => r.supplier))].sort();
+
+      document.getElementById('itemsList').innerHTML = uniqueItems.map(i => `<option value="${escapeHtml(i)}"></option>`).join('');
+      document.getElementById('suppliersList').innerHTML = uniqueSuppliers.map(s => `<option value="${escapeHtml(s)}"></option>`).join('');
+
+      const supSelect = document.getElementById('filterSupplier');
+      const prevSup = supSelect.value;
+      supSelect.innerHTML = '<option value="">كل الموردين</option>' +
+        uniqueSuppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      if (uniqueSuppliers.includes(prevSup)) supSelect.value = prevSup;
+
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const fSup = supSelect.value;
+      const fRating = document.getElementById('filterRating').value;
+
+      const filtered = enriched.filter(r => {
+        const matchQ = !q ||
+          r.item.toLowerCase().includes(q) ||
+          r.supplier.toLowerCase().includes(q) ||
+          r.unit.toLowerCase().includes(q);
+        const matchSup = !fSup || r.supplier === fSup;
+        const matchRat = !fRating || r.rating === fRating;
+        return matchQ && matchSup && matchRat;
+      });
+
+      const totalVal = enriched.reduce((s, r) => s + r.total, 0);
+      const totalQty = enriched.reduce((s, r) => s + r.qty, 0);
+      const bestCount = enriched.filter(r => r.rating === 'أفضل سعر').length;
+
+      document.getElementById('kpiTotalValue').textContent = fmtNum(totalVal);
+      document.getElementById('kpiCount').textContent = fmtQty(enriched.length);
+      document.getElementById('kpiQty').textContent = fmtQty(totalQty);
+      document.getElementById('kpiBestCount').textContent = fmtQty(bestCount);
+
+      const tbody = document.getElementById('mainTableBody');
+      const emptyState = document.getElementById('emptyState');
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+      } else {
+        emptyState.classList.add('hidden');
+        tbody.innerHTML = filtered.map((r, idx) => {
+          const isBest = r.rating === 'أفضل سعر';
+          const badgeClass = isBest
+            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+            : 'bg-rose-100 text-rose-800 border border-rose-200';
+          const diffClass = r.diff > 0 ? 'bg-amber-50 text-amber-800 font-bold' : 'text-slate-500';
+          const rowBg = idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white';
+          const safeId = escapeHtml(String(r.id)).replace(/'/g, "\\'");
+
+          return `
+            <tr class="${rowBg} hover:bg-sky-50/60 transition">
+              <td class="py-2.5 px-3 text-center text-slate-400 font-semibold">${idx + 1}</td>
+              <td class="py-2.5 px-3 font-bold text-slate-800">${escapeHtml(r.item)}</td>
+              <td class="py-2.5 px-3 text-center">${escapeHtml(r.unit)}</td>
+              <td class="py-2.5 px-3 text-center font-semibold">${fmtQty(r.qty)}</td>
+              <td class="py-2.5 px-3 text-center font-semibold">${fmtNum(r.price)}</td>
+              <td class="py-2.5 px-3 text-slate-700">${escapeHtml(r.supplier)}</td>
+              <td class="py-2.5 px-3 text-center font-bold text-navy-800 bg-sky-50/40">${fmtNum(r.total)}</td>
+              <td class="py-2.5 px-3 text-center font-bold text-navy-800 bg-sky-50/40">${fmtNum(r.minPrice)}</td>
+              <td class="py-2.5 px-3 text-center ${diffClass}">${fmtNum(r.diff)}</td>
+              <td class="py-2.5 px-3 text-center">
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeClass}">${r.rating}</span>
+              </td>
+              <td class="py-2.5 px-3 text-center no-print">
+                <div class="flex items-center justify-center gap-1">
+                  <button onclick="editRecord('${safeId}')" title="تعديل" class="p-1.5 rounded-lg text-navy-700 hover:bg-sky-100 transition">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                  </button>
+                  <button onclick="deleteRecord('${safeId}')" title="حذف" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100 transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      renderAnalytics(enriched, totalVal);
+      lucide.createIcons();
+    }
+
+    function renderAnalytics(enriched, grandTotal) {
+      const itemGroups = {};
+      enriched.forEach(r => {
+        const key = normalizeKey(r.item, r.unit);
+        if (!itemGroups[key]) {
+          itemGroups[key] = {
+            item: r.item, unit: r.unit,
+            minPrice: r.price, bestSupplier: r.supplier,
+            maxPrice: r.price, totalQty: 0, totalVal: 0
+          };
+        }
+        const g = itemGroups[key];
+        if (r.price < g.minPrice) { g.minPrice = r.price; g.bestSupplier = r.supplier; }
+        if (r.price > g.maxPrice) g.maxPrice = r.price;
+        g.totalQty += r.qty;
+        g.totalVal += r.total;
+      });
+
+      document.getElementById('itemsSummaryBody').innerHTML = Object.values(itemGroups).map((g, idx) => `
+        <tr class="${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}">
+          <td class="py-2.5 px-4 font-bold text-slate-800">${escapeHtml(g.item)}</td>
+          <td class="py-2.5 px-3 text-center">${escapeHtml(g.unit)}</td>
+          <td class="py-2.5 px-3 text-center font-extrabold text-emerald-700">${fmtNum(g.minPrice)}</td>
+          <td class="py-2.5 px-3 text-center font-semibold text-navy-800">${escapeHtml(g.bestSupplier)}</td>
+          <td class="py-2.5 px-3 text-center text-slate-700">${fmtNum(g.maxPrice)}</td>
+          <td class="py-2.5 px-3 text-center font-bold ${g.maxPrice - g.minPrice > 0 ? 'text-amber-700' : 'text-slate-400'}">${fmtNum(g.maxPrice - g.minPrice)}</td>
+          <td class="py-2.5 px-3 text-center font-semibold">${fmtQty(g.totalQty)}</td>
+          <td class="py-2.5 px-3 text-center font-bold text-navy-800">${fmtNum(g.totalVal)}</td>
+        </tr>
+      `).join('');
+
+      const supGroups = {};
+      enriched.forEach(r => {
+        const s = r.supplier;
+        if (!supGroups[s]) supGroups[s] = { supplier: s, count: 0, qty: 0, total: 0 };
+        supGroups[s].count += 1;
+        supGroups[s].qty += r.qty;
+        supGroups[s].total += r.total;
+      });
+
+      const supsArr = Object.values(supGroups).sort((a, b) => b.total - a.total);
+      document.getElementById('suppliersSummaryBody').innerHTML = supsArr.map((s, idx) => {
+        const pct = grandTotal > 0 ? (s.total / grandTotal) * 100 : 0;
+        return `
+          <tr class="${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}">
+            <td class="py-2.5 px-4 font-bold text-slate-800">${escapeHtml(s.supplier)}</td>
+            <td class="py-2.5 px-3 text-center">${fmtQty(s.count)}</td>
+            <td class="py-2.5 px-3 text-center">${fmtQty(s.qty)}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-navy-800">${fmtNum(s.total)}</td>
+            <td class="py-2.5 px-3 text-center font-semibold text-navy-700">${pct.toFixed(1)}%</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // -------------------- EXPORTS --------------------
+    function exportExcel() {
+      if (typeof XLSX === 'undefined') {
+        alert('تأكد من اتصالك بالإنترنت لتحميل مكتبة تصدير الإكسيل.');
+        return;
+      }
+      const enriched = enrichRecords(records);
+      const wb = XLSX.utils.book_new();
+
+      const sheet1Data = [
+        ['اسم الصنف', 'اسم الوحدة', 'الكمية', 'السعر', 'اسم المورد', 'الإجمالي', 'أقل سعر شراء للصنف', 'الفرق عن أقل سعر', 'تقييم السعر'],
+        ...enriched.map(r => [r.item, r.unit, r.qty, r.price, r.supplier, r.total, r.minPrice, r.diff, r.rating])
+      ];
+      const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+      ws1['!views'] = [{ RTL: true }];
+      ws1['!cols'] = [
+        { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+        { wch: 24 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 16 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws1, 'إدخال_الفواتير');
+
+      const itemGroups = {};
+      enriched.forEach(r => {
+        const key = normalizeKey(r.item, r.unit);
+        if (!itemGroups[key]) {
+          itemGroups[key] = { item: r.item, unit: r.unit, minPrice: r.price, bestSupplier: r.supplier, maxPrice: r.price, qty: 0, total: 0 };
+        }
+        const g = itemGroups[key];
+        if (r.price < g.minPrice) { g.minPrice = r.price; g.bestSupplier = r.supplier; }
+        if (r.price > g.maxPrice) g.maxPrice = r.price;
+        g.qty += r.qty;
+        g.total += r.total;
+      });
+
+      const sheet2Data = [
+        ['اسم الصنف', 'اسم الوحدة', 'أقل سعر شراء', 'أفضل مورد', 'أعلى سعر شراء', 'الفرق', 'إجمالي الكمية', 'إجمالي قيمة الشراء'],
+        ...Object.values(itemGroups).map(g => [g.item, g.unit, g.minPrice, g.bestSupplier, g.maxPrice, g.maxPrice - g.minPrice, g.qty, g.total])
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+      ws2['!views'] = [{ RTL: true }];
+      ws2['!cols'] = [
+        { wch: 24 }, { wch: 14 }, { wch: 16 }, { wch: 24 },
+        { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 18 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws2, 'ملخص_الأصناف');
+
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `فواتير_المشتريات_${today}.xlsx`);
+    }
+
+    function exportPDF() {
+      const now = new Date();
+      document.getElementById('printDate').textContent = now.toLocaleDateString('ar-YE', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+      document.getElementById('printCount').textContent = records.length;
+      document.getElementById('printSubtitle').textContent =
+        currentTab === 'entry'
+          ? 'جدول فواتير المشتريات ومقارنة أقل سعر شراء لكل صنف'
+          : 'ملخص مقارنة أسعار الأصناف وتقرير الموردين';
+      window.print();
+    }
+
+    function exportJSON() {
+      const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `نسخة_احتياطية_المشتريات_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async ev => {
+        try {
+          const parsed = JSON.parse(ev.target.result);
+          if (!Array.isArray(parsed)) throw new Error();
+          if (isCloudMode && db) {
+            const batch = writeBatch(db);
+            const colRef = collection(db, activeCollection);
+            parsed.forEach((r, idx) => {
+              batch.set(doc(colRef), {
+                item: r.item || '', unit: r.unit || '',
+                qty: Number(r.qty) || 0, price: Number(r.price) || 0,
+                supplier: r.supplier || '', createdAtMs: Date.now() + idx
+              });
+            });
+            await batch.commit();
+            showToast('تمت استعادة البيانات ورفعها للسحابة بنجاح!');
+          } else {
+            records = parsed;
+            saveLocalData();
+            renderAll();
+            showToast('تمت استعادة البيانات محلياً بنجاح!');
+          }
+        } catch {
+          alert('ملف النسخة الاحتياطية غير صالح.');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    // Expose globally for inline event handlers
+    window.handleLogin = handleLogin;
+    window.handleLogout = handleLogout;
+    window.togglePassVisibility = togglePassVisibility;
+    window.openCloudModal = openCloudModal;
+    window.closeCloudModal = closeCloudModal;
+    window.saveCloudSettings = saveCloudSettings;
+    window.uploadLocalToCloud = uploadLocalToCloud;
+    window.disconnectCloud = disconnectCloud;
+    window.handleFormSubmit = handleFormSubmit;
+    window.editRecord = editRecord;
+    window.deleteRecord = deleteRecord;
+    window.resetForm = resetForm;
+    window.loadSampleData = loadSampleData;
+    window.clearAllData = clearAllData;
+    window.switchTab = switchTab;
+    window.renderAll = renderAll;
+    window.updateLiveMinHint = updateLiveMinHint;
+    window.exportExcel = exportExcel;
+    window.exportPDF = exportPDF;
+    window.exportJSON = exportJSON;
+    window.importJSON = importJSON;
+
+    init();
+  </script>
+</body>
+</html>
