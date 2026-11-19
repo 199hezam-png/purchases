@@ -166,10 +166,10 @@
     let orderCounter = parseInt(localStorage.getItem('smart_purchases_order_seq') || '1');
     let activeTab = 'db';
 
-    // Helper: Remove Arabic Tatweel (ـ) and extra spaces for accurate matching
+    // Helper: Remove Arabic Tatweel (ـ) completely, then normalize spaces
     function normalizeAr(str) {
       if (str === null || str === undefined) return '';
-      return String(str).replace(/[\u0640\s]+/g, ' ').trim().toLowerCase();
+      return String(str).replace(/\u0640/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
     }
 
     // Initialize
@@ -247,7 +247,7 @@
 
                 const normRow = row.map(c => normalizeAr(c));
 
-                // 1. Detect Supplier in Modern Soft invoice header (row with ":العنــوان" and ":ملاحظـات")
+                // 1. Detect Supplier in Modern Soft invoice header
                 const addrIdx = normRow.findIndex(c => c.includes('العنوان'));
                 if (addrIdx !== -1 && !inTable) {
                   for (let c = addrIdx + 1; c < row.length; c++) {
@@ -294,7 +294,7 @@
                   const price = parseFloat(String(rawPrice).replace(/,/g, ''));
                   if (!itemName || isNaN(price) || price <= 0) continue;
 
-                  // Handle shifted merged cell for Unit in Modern Soft (header at col 17, value at col 18)
+                  // Handle shifted merged cell for Unit in Modern Soft
                   let unit = 'أساسي';
                   if (idxUnit !== -1) {
                     const uVal = String(row[idxUnit] || '').trim() ||
