@@ -51,7 +51,7 @@
         <div class="flex flex-wrap justify-between items-center gap-4 border-b pb-4">
           <div>
             <h2 class="text-lg font-bold text-slate-800">قاعدة بيانات الأصناف والأسعار التاريخية</h2>
-            <p class="text-xs text-slate-500">استورد فواتير مودرن سوفت (.xls / .xlsx) لتحديث أقل الأسعار وتتبع مرات الطلب</p>
+            <p class="text-xs text-slate-500">استورد فواتير مودرن سوفت (.xls / .xlsx) لمقارنة أسعار الموردين وتتبع مرات الطلب</p>
           </div>
           <div class="flex flex-wrap items-center gap-3">
             <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition shadow">
@@ -78,6 +78,7 @@
                 <th class="p-3">الوحدة</th>
                 <th class="p-3">أقل سعر شراء</th>
                 <th class="p-3">المورد (الأقل سعراً)</th>
+                <th class="p-3 text-center">عدد الموردين</th>
                 <th class="p-3 text-center">إجمالي مرات الطلب</th>
                 <th class="p-3">آخر سعر مسجل</th>
               </tr>
@@ -115,27 +116,33 @@
       </div>
 
       <!-- Add Item to Order Form -->
-      <div class="bg-white p-6 rounded-xl shadow-md space-y-4 no-print border-l-4 border-sky-500">
+      <div class="bg-white p-6 rounded-xl shadow-md space-y-4 no-print border-r-4 border-sky-500">
         <h3 class="font-bold text-slate-800 flex items-center gap-2">
-          <i data-lucide="plus-circle" class="w-5 h-5 text-sky-500"></i> إضافة صنف للطلبية
+          <i data-lucide="plus-circle" class="w-5 h-5 text-sky-500"></i> البحث عن صنف واختيار أقل سعر شراء
         </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">اسم الصنف</label>
-            <input type="text" id="orderItemInput" list="dbItemsDatalist" oninput="populateItemDetails()" placeholder="اكتب للبحث..." class="w-full p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500">
-            <datalist id="dbItemsDatalist"></datalist>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-slate-600 mb-1">اكتب اسم الصنف لعرض خيارات الموردين والأسعار</label>
+            <input type="text" id="orderItemInput" oninput="showPurchaseOptions()" placeholder="مثال: سبيمان، كونكور، سولبادين..." class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500">
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">الكمية المطلوبة</label>
-            <input type="number" id="orderQtyInput" min="1" value="1" placeholder="0" class="w-full p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500">
+            <input type="number" id="orderQtyInput" min="1" value="1" placeholder="1" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500">
           </div>
-          <button onclick="manualAddItemToOrder()" class="bg-sky-600 hover:bg-sky-500 text-white p-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition shadow">
-            <i data-lucide="plus" class="w-4 h-4"></i> إضافة للقائمة
+          <button onclick="manualAddNewItem()" class="bg-slate-700 hover:bg-slate-600 text-white p-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition shadow">
+            <i data-lucide="plus" class="w-4 h-4"></i> إضافة صنف جديد
           </button>
         </div>
-        <!-- Live Item Price Hint -->
-        <div id="priceHintBox" class="hidden p-3 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between">
-          <span id="priceHintText"></span>
+
+        <!-- Live Purchase Options Box -->
+        <div id="purchaseOptionsBox" class="hidden space-y-3 pt-2 border-t">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-600">خيارات الشراء المتاحة (مرتبة تلقائياً من الأقل سعراً):</span>
+            <button onclick="closeOptionsBox()" class="text-xs text-slate-400 hover:text-slate-600 font-bold">إغلاق ✕</button>
+          </div>
+          <div id="purchaseOptionsList" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+            <!-- Populated dynamically -->
+          </div>
         </div>
       </div>
 
@@ -165,6 +172,21 @@
     let currentOrder = [];
     let orderCounter = parseInt(localStorage.getItem('smart_purchases_order_seq') || '1');
     let activeTab = 'db';
+
+    // Ensure backward compatibility for old saved data
+    Object.keys(itemsDatabase).forEach(k => {
+      const item = itemsDatabase[k];
+      if (!item.suppliers) {
+        item.suppliers = {};
+        if (item.bestSupplier) {
+          item.suppliers[item.bestSupplier] = {
+            minPrice: item.minPrice,
+            lastPrice: item.lastRecordedPrice || item.minPrice,
+            count: item.orderCount || 1
+          };
+        }
+      }
+    });
 
     // Helper: Remove Arabic Tatweel (ـ) completely, then normalize spaces
     function normalizeAr(str) {
@@ -216,350 +238,4 @@
 
       if (tab === 'db') renderDbTable();
       if (tab === 'order') renderOrderTables();
-    }
-
-    // ==================== SMART EXCEL IMPORT (MODERN SOFT + STANDARD) ====================
-    function importExcelFile(e) {
-      const files = Array.from(e.target.files);
-      if (!files.length) return;
-
-      let totalImported = 0;
-      let filesProcessed = 0;
-
-      files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          try {
-            const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-
-            workbook.SheetNames.forEach(sheetName => {
-              const worksheet = workbook.Sheets[sheetName];
-              const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-              let currentSupplier = 'مورد غير محدد';
-              let inTable = false;
-              let idxItem = -1, idxPrice = -1, idxUnit = -1, idxQty = -1, idxSupplier = -1;
-
-              for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                if (!row || row.every(c => String(c).trim() === '')) continue;
-
-                const normRow = row.map(c => normalizeAr(c));
-
-                // 1. Detect Supplier in Modern Soft invoice header
-                const addrIdx = normRow.findIndex(c => c.includes('العنوان'));
-                if (addrIdx !== -1 && !inTable) {
-                  for (let c = addrIdx + 1; c < row.length; c++) {
-                    const val = String(row[c]).trim();
-                    const nVal = normalizeAr(val);
-                    if (val && !nVal.includes('ملاحظات') && !nVal.includes('ت:') && !nVal.includes('فاكس')) {
-                      currentSupplier = val;
-                      break;
-                    }
-                  }
-                }
-
-                // 2. Detect Table Header Row (works for Modern Soft & Standard Excel)
-                const foundItem = normRow.findIndex(h => h.includes('اسم الصنف') || h.includes('الصنف') || h === 'item' || h === 'name');
-                const foundPrice = normRow.findIndex(h => h.includes('السعر') || h.includes('سعر') || h === 'price' || h === 'cost');
-
-                if (foundItem !== -1 && foundPrice !== -1) {
-                  idxItem = foundItem;
-                  idxPrice = foundPrice;
-                  idxUnit = normRow.findIndex(h => h.includes('الوحدة') || h.includes('الوحده') || h.includes('unit'));
-                  idxQty = normRow.findIndex(h => h.includes('الكمية') || h.includes('الكميه') || h.includes('qty'));
-                  idxSupplier = normRow.findIndex(h => h.includes('المورد') || h.includes('مورد') || h.includes('supplier'));
-                  inTable = true;
-                  continue;
-                }
-
-                // 3. Detect End of Modern Soft Invoice Table
-                if (inTable) {
-                  const isEnd = normRow.some(c =>
-                    c.includes('الإجمالي') || c.includes('إلإجمالي') || c.includes('الاجمالي') ||
-                    c.includes('المستلم') || c.includes('رقم الفاتورة') || c.includes('مودرن سوفت')
-                  );
-                  if (isEnd) {
-                    inTable = false;
-                    continue;
-                  }
-
-                  // 4. Extract Item Row
-                  const rawItem = row[idxItem];
-                  const rawPrice = row[idxPrice];
-                  if (!rawItem || rawPrice === '' || rawPrice === null || rawPrice === undefined) continue;
-
-                  const itemName = String(rawItem).trim();
-                  const price = parseFloat(String(rawPrice).replace(/,/g, ''));
-                  if (!itemName || isNaN(price) || price <= 0) continue;
-
-                  // Handle shifted merged cell for Unit in Modern Soft
-                  let unit = 'أساسي';
-                  if (idxUnit !== -1) {
-                    const uVal = String(row[idxUnit] || '').trim() ||
-                                 String(row[idxUnit + 1] || '').trim() ||
-                                 String(row[idxUnit - 1] || '').trim();
-                    if (uVal && isNaN(Number(uVal))) unit = uVal;
-                  }
-
-                  const supplier = (idxSupplier !== -1 && String(row[idxSupplier]).trim())
-                    ? String(row[idxSupplier]).trim()
-                    : currentSupplier;
-
-                  const compositeKey = `${itemName}|||${unit}`;
-
-                  if (!itemsDatabase[compositeKey]) {
-                    itemsDatabase[compositeKey] = {
-                      name: itemName,
-                      unit: unit,
-                      minPrice: price,
-                      bestSupplier: supplier,
-                      orderCount: 1,
-                      lastRecordedPrice: price
-                    };
-                  } else {
-                    const item = itemsDatabase[compositeKey];
-                    item.orderCount += 1;
-                    item.lastRecordedPrice = price;
-                    if (price < item.minPrice) {
-                      item.minPrice = price;
-                      item.bestSupplier = supplier;
-                    }
-                  }
-                  totalImported++;
-                }
-              }
-            });
-          } catch (err) {
-            console.error(err);
-            alert('حدث خطأ أثناء قراءة الملف: ' + file.name);
-          }
-
-          filesProcessed++;
-          if (filesProcessed === files.length) {
-            saveState();
-            alert(`تمت معالجة واستيراد ${totalImported} حركة صنف بنجاح وتحديث قاعدة الأسعار ومعدل تكرار الطلبات!`);
-            if (activeTab === 'db') renderDbTable();
-          }
-        };
-        reader.readAsArrayBuffer(file);
-      });
-
-      e.target.value = '';
-    }
-
-    // ==================== DATABASE MANAGEMENT ====================
-    function renderDbTable() {
-      const q = document.getElementById('dbSearch').value.toLowerCase();
-      const tbody = document.getElementById('dbTableBody');
-      tbody.innerHTML = '';
-
-      const keys = Object.keys(itemsDatabase);
-      const datalist = document.getElementById('dbItemsDatalist');
-      datalist.innerHTML = keys.map(k => `<option value="${itemsDatabase[k].name} (${itemsDatabase[k].unit})">`).join('');
-
-      let index = 1;
-      keys.forEach(key => {
-        const item = itemsDatabase[key];
-        if (q && !item.name.toLowerCase().includes(q) && !item.bestSupplier.toLowerCase().includes(q)) return;
-
-        const row = `
-          <tr class="hover:bg-slate-50">
-            <td class="p-3 font-bold">${index++}</td>
-            <td class="p-3 font-bold text-slate-800">${item.name}</td>
-            <td class="p-3"><span class="bg-slate-200 px-2 py-0.5 rounded text-xs font-bold">${item.unit}</span></td>
-            <td class="p-3 text-emerald-600 font-extrabold">${item.minPrice.toFixed(2)}</td>
-            <td class="p-3"><span class="text-sky-700 font-bold">${item.bestSupplier}</span></td>
-            <td class="p-3 text-center"><span class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-xs font-bold">${item.orderCount} مرات</span></td>
-            <td class="p-3 text-slate-500">${item.lastRecordedPrice.toFixed(2)}</td>
-          </tr>
-        `;
-        tbody.insertAdjacentHTML('beforeend', row);
-      });
-    }
-
-    function clearDatabase() {
-      if (confirm('هل أنت متأكد من مسح جميع بيانات الأصناف والأسعار؟')) {
-        itemsDatabase = {};
-        currentOrder = [];
-        orderCounter = 1;
-        saveState();
-        updateOrderNumberDisplay();
-        renderDbTable();
-        alert('تم مسح البيانات.');
-      }
-    }
-
-    // ==================== ORDER CREATION ====================
-    function populateItemDetails() {
-      const inputVal = document.getElementById('orderItemInput').value;
-      const hintBox = document.getElementById('priceHintBox');
-      const hintText = document.getElementById('priceHintText');
-
-      const foundKey = Object.keys(itemsDatabase).find(k => `${itemsDatabase[k].name} (${itemsDatabase[k].unit})` === inputVal);
-
-      if (foundKey) {
-        const item = itemsDatabase[foundKey];
-        hintText.innerHTML = `الصنف: ${item.name} | أقل سعر: <span class="bg-white px-1.5 py-0.5 rounded text-emerald-700">${item.minPrice.toFixed(2)}</span> | المورد: <span class="bg-white px-1.5 py-0.5 rounded text-sky-700">${item.bestSupplier}</span> | طُلب سابقاً: <span class="bg-white px-1.5 py-0.5 rounded text-amber-700">${item.orderCount} مرات</span>`;
-        hintBox.classList.remove('hidden');
-      } else {
-        hintBox.classList.add('hidden');
-      }
-    }
-
-    function manualAddItemToOrder() {
-      const inputVal = document.getElementById('orderItemInput').value.trim();
-      const qty = parseInt(document.getElementById('orderQtyInput').value);
-
-      if (!inputVal || isNaN(qty) || qty <= 0) {
-        alert('يرجى اختيار صنف صحيح وإدخال كمية أكبر من صفر.');
-        return;
-      }
-
-      const foundKey = Object.keys(itemsDatabase).find(k => `${itemsDatabase[k].name} (${itemsDatabase[k].unit})` === inputVal);
-
-      if (!foundKey) {
-        if (!confirm('هذا الصنف جديد وغير موجود في قاعدة البيانات المسعرة. هل ترغب بإضافته بمورد "غير محدد" وسعر 0؟')) {
-          return;
-        }
-        const newKey = `${inputVal}|||افتراضي`;
-        itemsDatabase[newKey] = { name: inputVal, unit: 'افتراضي', minPrice: 0, bestSupplier: 'غير محدد', orderCount: 1, lastRecordedPrice: 0 };
-        currentOrder.push({ key: newKey, itemObj: itemsDatabase[newKey], qty: qty });
-      } else {
-        const existingOrderIdx = currentOrder.findIndex(o => o.key === foundKey);
-        if (existingOrderIdx > -1) {
-          currentOrder[existingOrderIdx].qty += qty;
-        } else {
-          currentOrder.push({ key: foundKey, itemObj: itemsDatabase[foundKey], qty: qty });
-        }
-      }
-
-      document.getElementById('orderItemInput').value = '';
-      document.getElementById('orderQtyInput').value = '1';
-      document.getElementById('priceHintBox').classList.add('hidden');
-      renderOrderTables();
-    }
-
-    function removeItemFromOrder(key) {
-      currentOrder = currentOrder.filter(o => o.key !== key);
-      renderOrderTables();
-    }
-
-    function renderOrderTables() {
-      const container = document.getElementById('ordersContainer');
-      container.innerHTML = '';
-
-      if (currentOrder.length === 0) {
-        container.innerHTML = `
-          <div class="bg-white p-12 text-center rounded-xl shadow-md text-slate-400 space-y-2">
-            <i data-lucide="shopping-bag" class="w-12 h-12 mx-auto text-slate-300"></i>
-            <p class="font-bold text-lg">الطلبية الحالية فارغة</p>
-            <p class="text-xs">استخدم النموذج أعلاه لإضافة الأصناف، وسيقوم النظام بتجميعها وترتيبها تلقائياً حسب المورد.</p>
-          </div>
-        `;
-        lucide.createIcons();
-        return;
-      }
-
-      // Group items by supplier
-      const grouped = {};
-      currentOrder.forEach(ord => {
-        const supplier = ord.itemObj.bestSupplier;
-        if (!grouped[supplier]) grouped[supplier] = [];
-        grouped[supplier].push(ord);
-      });
-
-      let grandTotalItems = currentOrder.reduce((sum, o) => sum + o.qty, 0);
-
-      Object.keys(grouped).forEach((supplier, supIndex) => {
-        const items = grouped[supplier];
-        const supplierTotal = items.reduce((sum, o) => sum + (o.qty * o.itemObj.minPrice), 0);
-
-        let tableRows = '';
-        items.forEach((ord, idx) => {
-          tableRows += `
-            <tr class="hover:bg-slate-50">
-              <td class="p-3 text-center">${idx + 1}</td>
-              <td class="p-3 font-bold text-slate-800">${ord.itemObj.name}</td>
-              <td class="p-3 text-center"><span class="bg-slate-200 px-2 py-0.5 rounded text-xs font-bold">${ord.itemObj.unit}</span></td>
-              <td class="p-3 text-center font-bold text-sky-600">${ord.qty}</td>
-              <td class="p-3 text-center font-extrabold text-emerald-600">${ord.itemObj.minPrice.toFixed(2)}</td>
-              <td class="p-3 text-center font-bold text-slate-800">${(ord.qty * ord.itemObj.minPrice).toFixed(2)}</td>
-              <td class="p-3 text-center no-print">
-                <button onclick="removeItemFromOrder('${ord.key}')" class="text-rose-600 hover:text-rose-800 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-              </td>
-            </tr>
-          `;
-        });
-
-        const sectionHtml = `
-          <div class="bg-white rounded-xl shadow-md overflow-hidden border border-slate-200 space-y-4">
-            <div class="bg-slate-800 text-white p-4 flex flex-wrap justify-between items-center gap-4">
-              <div class="flex items-center gap-3">
-                <i data-lucide="truck" class="w-6 h-6 text-sky-400 no-print"></i>
-                <div>
-                  <h3 class="font-extrabold text-base">المورد: ${supplier}</h3>
-                  <p class="text-xs text-slate-400">المجموعة رقم ${supIndex + 1} في الطلبية (${items.length} أصناف)</p>
-                </div>
-              </div>
-              <div class="text-left bg-slate-700 px-4 py-2 rounded-lg">
-                <span class="text-xs text-slate-400 block">إجمالي قيمة التوريد لهذا المورد</span>
-                <span class="text-xl font-black text-emerald-400">${supplierTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div class="overflow-x-auto p-4">
-              <table class="w-full text-right text-sm border-collapse">
-                <thead>
-                  <tr class="border-b bg-slate-100 text-slate-700">
-                    <th class="p-3 text-center">#</th>
-                    <th class="p-3">اسم الصنف</th>
-                    <th class="p-3 text-center">الوحدة</th>
-                    <th class="p-3 text-center">الكمية المطلوبة</th>
-                    <th class="p-3 text-center">أقل سعر شراء معتمد</th>
-                    <th class="p-3 text-center">الإجمالي الجزئي</th>
-                    <th class="p-3 text-center no-print">حذف</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y text-slate-600">
-                  ${tableRows}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        `;
-        container.insertAdjacentHTML('beforeend', sectionHtml);
-      });
-
-      // Grand Summary Footer
-      const grandTotalSum = currentOrder.reduce((sum, o) => sum + (o.qty * o.itemObj.minPrice), 0);
-      const summaryFooter = `
-        <div class="bg-slate-900 text-white p-6 rounded-xl shadow-lg flex flex-wrap justify-between items-center gap-6 mt-8 print-full">
-          <div>
-            <h4 class="text-lg font-bold text-sky-400">ملخص الطلبية الإجمالي</h4>
-            <p class="text-xs text-slate-400">إجمالي الأصناف والكميات لكافة الموردين</p>
-          </div>
-          <div class="flex flex-wrap gap-4">
-            <div class="text-center bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 min-w-[140px]">
-              <span class="text-xs text-slate-400 block">إجمالي أنواع الأصناف</span>
-              <span class="text-2xl font-black text-white">${currentOrder.length} أصناف</span>
-            </div>
-            <div class="text-center bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 min-w-[140px]">
-              <span class="text-xs text-slate-400 block">إجمالي الوحدات</span>
-              <span class="text-2xl font-black text-sky-300">${grandTotalItems} وحدة</span>
-            </div>
-            <div class="text-center bg-emerald-950 px-6 py-2 rounded-lg border border-emerald-500 min-w-[180px]">
-              <span class="text-xs text-emerald-300 block">القيمة الإجمالية للطلبية</span>
-              <span class="text-3xl font-black text-emerald-400">${grandTotalSum.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-      `;
-      container.insertAdjacentHTML('beforeend', summaryFooter);
-
-      lucide.createIcons();
-    }
-  </script>
-</body>
-</html>
+    
